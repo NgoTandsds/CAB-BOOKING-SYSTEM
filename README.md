@@ -59,8 +59,8 @@ cab-booking-system/
 │  ├─ payment-service
 │  ├─ review-service
 │  ├─ notification-service
-│  ├─ eta-service
-│  └─ ai-matching-service
+│  ├─ driver-service
+│  └─ user-service
 ├─ frontend/
 │  ├─ customer-app
 │  ├─ driver-app
@@ -92,14 +92,6 @@ cab-booking-system/
 - Tạo / huỷ booking
 - Phát event `booking.created`
 - Khởi tạo luồng đặt xe
-
-### 🧠 AI Matching Service
-- Ghép tài xế cho booking (mock AI)
-- Có cơ chế fallback rule-based
-
-### 🕒 ETA Service
-- Trả ETA cho chuyến đi
-- Cache kết quả (Redis)
 
 ### 🚦 Ride Service
 - Tạo chuyến đi (ride)
