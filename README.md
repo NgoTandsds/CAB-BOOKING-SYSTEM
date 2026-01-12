@@ -48,30 +48,26 @@ Hệ thống hỗ trợ các chức năng cốt lõi:
 
 ## 4. Cấu trúc source code
 
+```text
 cab-booking-system/
-├─ README.md
-├─ docs/ # Tài liệu kiến trúc & nghiệp vụ
-├─ infra/ # Docker, observability
-├─ libs/ # Thư viện dùng chung (auth, messaging)
-├─ gateway/ # API Gateway
-├─ services/ # Các microservices
-│ ├─ auth-service
-│ ├─ user-service
-│ ├─ driver-service
-│ ├─ booking-service
-│ ├─ ride-service
-│ ├─ pricing-service
-│ ├─ payment-service
-│ ├─ review-service
-│ ├─ notification-service
-│ ├─ eta-service
-│ └─ ai-matching-service
+├─ gateway/                 # API Gateway
+├─ services/                # Các microservices
+│  ├─ auth-service
+│  ├─ booking-service
+│  ├─ ride-service
+│  ├─ pricing-service
+│  ├─ payment-service
+│  ├─ review-service
+│  ├─ notification-service
+│  ├─ eta-service
+│  └─ ai-matching-service
 ├─ frontend/
-│ ├─ customer-app
-│ ├─ driver-app
-│ └─ admin-dashboard
+│  ├─ customer-app
+│  ├─ driver-app
+│  └─ admin-dashboard
+├─ infra/                   # Docker, monitoring
 └─ docker-compose.yml
-
+```
 
 ---
 
