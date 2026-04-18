@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cab-booking-config
+  namespace: cab-booking
+data:
+  KAFKA_BROKERS: "kafka:9092"
+  REDIS_URL: "redis://:redis123@redis:6379"
+  PRICING_SERVICE_URL: "http://pricing-service:3007"
+  AUTH_SERVICE_URL: "http://auth-service:3001"
+  USER_SERVICE_URL: "http://user-service:3002"
+  DRIVER_SERVICE_URL: "http://driver-service:3003"
+  BOOKING_SERVICE_URL: "http://booking-service:3004"
+  RIDE_SERVICE_URL: "http://ride-service:3005"
+  PAYMENT_SERVICE_URL: "http://payment-service:3006"
+  NOTIFICATION_SERVICE_URL: "http://notification-service:3008"
+  REVIEW_SERVICE_URL: "http://review-service:3009"
+  LOG_LEVEL: "info"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cab-booking-secrets
+  namespace: cab-booking
+type: Opaque
+stringData:
+  JWT_SECRET: "cab_booking_jwt_secret_2024_very_long_and_secure"
+  DB_PASS: "postgres123"
+  REDIS_PASSWORD: "redis123"

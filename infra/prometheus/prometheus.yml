@@ -1,0 +1,74 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files:
+  - "alert_rules.yml"
+
+scrape_configs:
+  # Scrape Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # API Gateway
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:3000']
+    metrics_path: '/metrics'
+
+  # Microservices
+  - job_name: 'auth-service'
+    static_configs:
+      - targets: ['auth-service:3001']
+    metrics_path: '/metrics'
+
+  - job_name: 'user-service'
+    static_configs:
+      - targets: ['user-service:3002']
+    metrics_path: '/metrics'
+
+  - job_name: 'driver-service'
+    static_configs:
+      - targets: ['driver-service:3003']
+    metrics_path: '/metrics'
+
+  - job_name: 'booking-service'
+    static_configs:
+      - targets: ['booking-service:3004']
+    metrics_path: '/metrics'
+
+  - job_name: 'ride-service'
+    static_configs:
+      - targets: ['ride-service:3005']
+    metrics_path: '/metrics'
+
+  - job_name: 'payment-service'
+    static_configs:
+      - targets: ['payment-service:3006']
+    metrics_path: '/metrics'
+
+  - job_name: 'pricing-service'
+    static_configs:
+      - targets: ['pricing-service:3007']
+    metrics_path: '/metrics'
+
+  - job_name: 'notification-service'
+    static_configs:
+      - targets: ['notification-service:3008']
+    metrics_path: '/metrics'
+
+  - job_name: 'review-service'
+    static_configs:
+      - targets: ['review-service:3009']
+    metrics_path: '/metrics'
+
+  # Kafka Consumer Lag — TC 119
+  - job_name: 'kafka-exporter'
+    static_configs:
+      - targets: ['kafka-exporter:9308']

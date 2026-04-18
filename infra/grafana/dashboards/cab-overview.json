@@ -1,0 +1,89 @@
+{
+  "title": "CAB Booking System — Overview",
+  "uid": "cab-overview",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "15s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "HTTP Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_request_duration_seconds_count[1m])) by (service)",
+          "legendFormat": "{{ service }}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "P95 Latency (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service)) * 1000",
+          "legendFormat": "{{ service }} p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": 0 },
+              { "color": "yellow", "value": 200 },
+              { "color": "red", "value": 300 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Error Rate (%)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "100 * sum(rate(http_request_duration_seconds_count{status_code=~\"5..\"}[5m])) by (service) / sum(rate(http_request_duration_seconds_count[5m])) by (service)",
+          "legendFormat": "{{ service }} errors"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Node.js Heap Used (MB)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "nodejs_heap_size_used_bytes / 1024 / 1024",
+          "legendFormat": "{{ service }} heap"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Service Up/Down",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 4 },
+      "targets": [
+        {
+          "expr": "up",
+          "legendFormat": "{{ job }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+          ]
+        }
+      }
+    }
+  ]
+}

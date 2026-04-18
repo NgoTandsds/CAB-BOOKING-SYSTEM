@@ -1,0 +1,369 @@
+version: '3.9'
+
+networks:
+  cab-network:
+    driver: bridge
+
+volumes:
+  postgres-auth-data:
+  postgres-user-data:
+  postgres-driver-data:
+  postgres-booking-data:
+  postgres-ride-data:
+  postgres-payment-data:
+  mongo-notification-data:
+  mongo-review-data:
+  redis-data:
+  kafka-data:
+  zookeeper-data:
+  prometheus-data:
+  grafana-data:
+  kafka-exporter-data:
+
+services:
+  # ─────────────────────────────────────────
+  # Infrastructure
+  # ─────────────────────────────────────────
+  postgres-auth:
+    image: postgres:15-alpine
+    environment: { POSTGRES_DB: auth_db, POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres123 }
+    volumes: [ postgres-auth-data:/var/lib/postgresql/data ]
+    networks: [ cab-network ]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U postgres"], interval: 10s, timeout: 5s, retries: 5 }
+
+  postgres-user:
+    image: postgres:15-alpine
+    environment: { POSTGRES_DB: user_db, POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres123 }
+    volumes: [ postgres-user-data:/var/lib/postgresql/data ]
+    networks: [ cab-network ]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U postgres"], interval: 10s, timeout: 5s, retries: 5 }
+
+  postgres-driver:
+    image: postgres:15-alpine
+    environment: { POSTGRES_DB: driver_db, POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres123 }
+    volumes: [ postgres-driver-data:/var/lib/postgresql/data ]
+    networks: [ cab-network ]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U postgres"], interval: 10s, timeout: 5s, retries: 5 }
+
+  postgres-booking:
+    image: postgres:15-alpine
+    environment: { POSTGRES_DB: booking_db, POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres123 }
+    volumes: [ postgres-booking-data:/var/lib/postgresql/data ]
+    networks: [ cab-network ]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U postgres"], interval: 10s, timeout: 5s, retries: 5 }
+
+  postgres-ride:
+    image: postgres:15-alpine
+    environment: { POSTGRES_DB: ride_db, POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres123 }
+    volumes: [ postgres-ride-data:/var/lib/postgresql/data ]
+    networks: [ cab-network ]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U postgres"], interval: 10s, timeout: 5s, retries: 5 }
+
+  postgres-payment:
+    image: postgres:15-alpine
+    environment: { POSTGRES_DB: payment_db, POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres123 }
+    volumes: [ postgres-payment-data:/var/lib/postgresql/data ]
+    networks: [ cab-network ]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U postgres"], interval: 10s, timeout: 5s, retries: 5 }
+
+  mongo-notification:
+    image: mongo:6-jammy
+    environment: { MONGO_INITDB_DATABASE: notification_db }
+    volumes: [ mongo-notification-data:/data/db ]
+    networks: [ cab-network ]
+    healthcheck: { test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"], interval: 10s, timeout: 10s, retries: 10, start_period: 60s }
+
+  mongo-review:
+    image: mongo:6-jammy
+    environment: { MONGO_INITDB_DATABASE: review_db }
+    volumes: [ mongo-review-data:/data/db ]
+    networks: [ cab-network ]
+    healthcheck: { test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"], interval: 10s, timeout: 10s, retries: 10, start_period: 60s }
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass redis123
+    volumes: [ redis-data:/data ]
+    networks: [ cab-network ]
+    healthcheck: { test: ["CMD", "redis-cli", "-a", "redis123", "ping"], interval: 10s, timeout: 5s, retries: 5 }
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment: { ZOOKEEPER_CLIENT_PORT: 2181, ZOOKEEPER_TICK_TIME: 2000 }
+    volumes: [ zookeeper-data:/var/lib/zookeeper/data ]
+    networks: [ cab-network ]
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on: [ zookeeper ]
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes: [ kafka-data:/var/lib/kafka/data ]
+    networks: [ cab-network ]
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ─────────────────────────────────────────
+  # Application Services (new paths)
+  # ─────────────────────────────────────────
+  api-gateway:
+    build: { context: ./api-gateway, dockerfile: Dockerfile }
+    ports: [ "3000:3000" ]
+    environment:
+      PORT: 3000
+      JWT_SECRET: cab_booking_jwt_secret_2024_very_long_and_secure
+      REDIS_URL: redis://:redis123@redis:6379
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_SERVICE_NAME: api-gateway
+      AUTH_SERVICE_URL: http://auth-service:3001
+      USER_SERVICE_URL: http://user-service:3002
+      DRIVER_SERVICE_URL: http://driver-service:3003
+      BOOKING_SERVICE_URL: http://booking-service:3004
+      RIDE_SERVICE_URL: http://ride-service:3005
+      PAYMENT_SERVICE_URL: http://payment-service:3006
+      PRICING_SERVICE_URL: http://pricing-service:3007
+      NOTIFICATION_SERVICE_URL: http://notification-service:3008
+      REVIEW_SERVICE_URL: http://review-service:3009
+    depends_on: [ redis ]
+    networks: [ cab-network ]
+    restart: unless-stopped
+
+  auth-service:
+    build: { context: ./services/auth-service, dockerfile: Dockerfile }
+    ports: [ "3001:3001" ]
+    environment:
+      PORT: 3001
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_SERVICE_NAME: auth-service
+      DB_HOST: postgres-auth
+      DB_PORT: 5432
+      DB_NAME: auth_db
+      DB_USER: postgres
+      DB_PASS: postgres123
+      JWT_SECRET: cab_booking_jwt_secret_2024_very_long_and_secure
+      JWT_EXPIRES_IN: 15m
+      REFRESH_TOKEN_EXPIRES_IN: 7d
+      REDIS_URL: redis://:redis123@redis:6379
+    depends_on:
+      postgres-auth: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [ cab-network ]
+    restart: unless-stopped
+
+  user-service:
+    build: { context: ./services/user-service, dockerfile: Dockerfile }
+    ports: [ "3002:3002" ]
+    environment:
+      PORT: 3002
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_SERVICE_NAME: user-service
+      DB_HOST: postgres-user
+      DB_PORT: 5432
+      DB_NAME: user_db
+      DB_USER: postgres
+      DB_PASS: postgres123
+    depends_on:
+      postgres-user: { condition: service_healthy }
+    networks: [ cab-network ]
+    restart: unless-stopped
+
+  driver-service:
+    build: { context: ./services/driver-service, dockerfile: Dockerfile }
+    ports: [ "3003:3003" ]
+    environment:
+      PORT: 3003
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_SERVICE_NAME: driver-service
+      DB_HOST: postgres-driver
+      DB_PORT: 5432
+      DB_NAME: driver_db
+      DB_USER: postgres
+      DB_PASS: postgres123
+      REDIS_URL: redis://:redis123@redis:6379
+      KAFKA_BROKERS: kafka:9092
+    depends_on:
+      postgres-driver: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+    networks: [ cab-network ]
+    restart: unless-stopped
+
+  booking-service:
+    build: { context: ./services/booking-service, dockerfile: Dockerfile }
+    ports: [ "3004:3004" ]
+    environment:
+      PORT: 3004
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_SERVICE_NAME: booking-service
+      DB_HOST: postgres-booking
+      DB_PORT: 5432
+      DB_NAME: booking_db
+      DB_USER: postgres
+      DB_PASS: postgres123
+      KAFKA_BROKERS: kafka:9092
+      PRICING_SERVICE_URL: http://pricing-service:3007
+    depends_on:
+      postgres-booking: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+    networks: [ cab-network ]
+    restart: unless-stopped
+
+  ride-service:
+    build: { context: ./services/ride-service, dockerfile: Dockerfile }
+    ports: [ "3005:3005" ]
+    environment:
+      PORT: 3005
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_SERVICE_NAME: ride-service
+      DB_HOST: postgres-ride
+      DB_PORT: 5432
+      DB_NAME: ride_db
+      DB_USER: postgres
+      DB_PASS: postgres123
+      KAFKA_BROKERS: kafka:9092
+      REDIS_URL: redis://:redis123@redis:6379
+    depends_on:
+      postgres-ride: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+    networks: [ cab-network ]
+    restart: unless-stopped
+
+  payment-service:
+    build: { context: ./services/payment-service, dockerfile: Dockerfile }
+    ports: [ "3006:3006" ]
+    environment:
+      PORT: 3006
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_SERVICE_NAME: payment-service
+      DB_HOST: postgres-payment
+      DB_PORT: 5432
+      DB_NAME: payment_db
+      DB_USER: postgres
+      DB_PASS: postgres123
+      KAFKA_BROKERS: kafka:9092
+    depends_on:
+      postgres-payment: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+    networks: [ cab-network ]
+    restart: unless-stopped
+
+  pricing-service:
+    build: { context: ./services/pricing-service, dockerfile: Dockerfile }
+    ports: [ "3007:3007" ]
+    environment:
+      PORT: 3007
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_SERVICE_NAME: pricing-service
+      REDIS_URL: redis://:redis123@redis:6379
+    depends_on:
+      redis: { condition: service_healthy }
+    networks: [ cab-network ]
+    restart: unless-stopped
+
+  notification-service:
+    build: { context: ./services/notification-service, dockerfile: Dockerfile }
+    ports: [ "3008:3008" ]
+    environment:
+      PORT: 3008
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_SERVICE_NAME: notification-service
+      MONGO_URI: mongodb://mongo-notification:27017/notification_db
+      KAFKA_BROKERS: kafka:9092
+    depends_on:
+      mongo-notification: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+    networks: [ cab-network ]
+    restart: unless-stopped
+
+  review-service:
+    build: { context: ./services/review-service, dockerfile: Dockerfile }
+    ports: [ "3009:3009" ]
+    environment:
+      PORT: 3009
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_SERVICE_NAME: review-service
+      MONGO_URI: mongodb://mongo-review:27017/review_db
+    depends_on:
+      mongo-review: { condition: service_healthy }
+    networks: [ cab-network ]
+    restart: unless-stopped
+
+  client:
+    build: { context: ./client, dockerfile: Dockerfile }
+    ports: [ "3010:3010" ]
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+    networks: [ cab-network ]
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────
+  # Monitoring — TC 113, 114, 116, 117
+  # ─────────────────────────────────────────
+  # ─────────────────────────────────────────
+  # Distributed Tracing — TC 115
+  # ─────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:1.56
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4318:4318"     # OTLP HTTP receiver
+      - "4317:4317"     # OTLP gRPC receiver
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    networks: [ cab-network ]
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────
+  # Monitoring — TC 113, 114, 116, 117
+  # ─────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    ports: [ "9090:9090" ]
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    networks: [ cab-network ]
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────
+  # Kafka Consumer Lag Monitoring — TC 119
+  # ─────────────────────────────────────────
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:latest
+    command:
+      - "--kafka.server=kafka:9092"
+    ports:
+      - "9308:9308"
+    depends_on:
+      kafka: { condition: service_healthy }
+    networks: [ cab-network ]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    ports: [ "3011:3000" ]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/etc/grafana/dashboards:ro
+    depends_on: [ prometheus ]
+    networks: [ cab-network ]
+    restart: unless-stopped

@@ -1,0 +1,51 @@
+groups:
+  - name: cab_booking_alerts
+    interval: 30s
+    rules:
+      # TC 116: Alert on high error rate
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_request_duration_seconds_count{status_code=~"5.."}[5m])) by (service)
+          /
+          sum(rate(http_request_duration_seconds_count[5m])) by (service)
+          > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate on {{ $labels.service }}"
+          description: "Error rate is {{ $value | humanizePercentage }} on {{ $labels.service }}"
+
+      # TC 117: Alert on high P95 latency (> 300ms)
+      - alert: HighP95Latency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service)
+          ) > 0.3
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High P95 latency on {{ $labels.service }}"
+          description: "P95 latency is {{ $value | humanizeDuration }} on {{ $labels.service }}"
+
+      # Service down alert
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 1 minute"
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: |
+          nodejs_heap_size_used_bytes / nodejs_heap_size_total_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.service }}"
+          description: "Heap usage is {{ $value | humanizePercentage }} on {{ $labels.service }}"

@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cab-booking
+  labels:
+    app: cab-booking-system

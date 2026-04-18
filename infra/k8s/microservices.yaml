@@ -1,0 +1,729 @@
+# ─────────────────────────────────────────────────────────────────
+# auth-service  (port 3001)
+# ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: cab-booking
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+        - name: auth-service
+          image: cab-booking/auth-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3001
+          env:
+            - name: PORT
+              value: "3001"
+            - name: DB_HOST
+              value: "postgres-auth"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "auth_db"
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: cab-booking-secrets
+                  key: DB_PASS
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: cab-booking-secrets
+                  key: JWT_SECRET
+            - name: JWT_EXPIRES_IN
+              value: "15m"
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: cab-booking-config
+                  key: REDIS_URL
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: cab-booking
+spec:
+  selector:
+    app: auth-service
+  ports:
+    - port: 3001
+      targetPort: 3001
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: auth-service-hpa
+  namespace: cab-booking
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: auth-service
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+---
+# ─────────────────────────────────────────────────────────────────
+# booking-service  (port 3004)
+# ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: booking-service
+  namespace: cab-booking
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: booking-service
+  template:
+    metadata:
+      labels:
+        app: booking-service
+    spec:
+      containers:
+        - name: booking-service
+          image: cab-booking/booking-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3004
+          env:
+            - name: PORT
+              value: "3004"
+            - name: DB_HOST
+              value: "postgres-booking"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "booking_db"
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: cab-booking-secrets
+                  key: DB_PASS
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: cab-booking-config
+                  key: KAFKA_BROKERS
+            - name: PRICING_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: cab-booking-config
+                  key: PRICING_SERVICE_URL
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3004
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3004
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: booking-service
+  namespace: cab-booking
+spec:
+  selector:
+    app: booking-service
+  ports:
+    - port: 3004
+      targetPort: 3004
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: booking-service-hpa
+  namespace: cab-booking
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: booking-service
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+---
+# ─────────────────────────────────────────────────────────────────
+# ride-service  (port 3005)
+# ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ride-service
+  namespace: cab-booking
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ride-service
+  template:
+    metadata:
+      labels:
+        app: ride-service
+    spec:
+      containers:
+        - name: ride-service
+          image: cab-booking/ride-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3005
+          env:
+            - name: PORT
+              value: "3005"
+            - name: DB_HOST
+              value: "postgres-ride"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "ride_db"
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: cab-booking-secrets
+                  key: DB_PASS
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: cab-booking-config
+                  key: KAFKA_BROKERS
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: cab-booking-config
+                  key: REDIS_URL
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3005
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3005
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ride-service
+  namespace: cab-booking
+spec:
+  selector:
+    app: ride-service
+  ports:
+    - port: 3005
+      targetPort: 3005
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ride-service-hpa
+  namespace: cab-booking
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ride-service
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+---
+# ─────────────────────────────────────────────────────────────────
+# driver-service  (port 3003)
+# ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: driver-service
+  namespace: cab-booking
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: driver-service
+  template:
+    metadata:
+      labels:
+        app: driver-service
+    spec:
+      containers:
+        - name: driver-service
+          image: cab-booking/driver-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3003
+          env:
+            - name: PORT
+              value: "3003"
+            - name: DB_HOST
+              value: "postgres-driver"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "driver_db"
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: cab-booking-secrets
+                  key: DB_PASS
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: cab-booking-config
+                  key: REDIS_URL
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: cab-booking-config
+                  key: KAFKA_BROKERS
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3003
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3003
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: driver-service
+  namespace: cab-booking
+spec:
+  selector:
+    app: driver-service
+  ports:
+    - port: 3003
+      targetPort: 3003
+---
+# ─────────────────────────────────────────────────────────────────
+# payment-service  (port 3006)
+# ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: cab-booking
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+        - name: payment-service
+          image: cab-booking/payment-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3006
+          env:
+            - name: PORT
+              value: "3006"
+            - name: DB_HOST
+              value: "postgres-payment"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "payment_db"
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: cab-booking-secrets
+                  key: DB_PASS
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: cab-booking-config
+                  key: KAFKA_BROKERS
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3006
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3006
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: cab-booking
+spec:
+  selector:
+    app: payment-service
+  ports:
+    - port: 3006
+      targetPort: 3006
+---
+# ─────────────────────────────────────────────────────────────────
+# pricing-service  (port 3007)
+# ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pricing-service
+  namespace: cab-booking
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pricing-service
+  template:
+    metadata:
+      labels:
+        app: pricing-service
+    spec:
+      containers:
+        - name: pricing-service
+          image: cab-booking/pricing-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3007
+          env:
+            - name: PORT
+              value: "3007"
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: cab-booking-config
+                  key: REDIS_URL
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3007
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3007
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pricing-service
+  namespace: cab-booking
+spec:
+  selector:
+    app: pricing-service
+  ports:
+    - port: 3007
+      targetPort: 3007
+---
+# ─────────────────────────────────────────────────────────────────
+# notification-service  (port 3008)
+# ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: cab-booking
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+        - name: notification-service
+          image: cab-booking/notification-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3008
+          env:
+            - name: PORT
+              value: "3008"
+            - name: MONGO_URI
+              value: "mongodb://mongo-notification:27017/notification_db"
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: cab-booking-config
+                  key: KAFKA_BROKERS
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3008
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3008
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: cab-booking
+spec:
+  selector:
+    app: notification-service
+  ports:
+    - port: 3008
+      targetPort: 3008
+---
+# ─────────────────────────────────────────────────────────────────
+# user-service  (port 3002)
+# ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: cab-booking
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+        - name: user-service
+          image: cab-booking/user-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3002
+          env:
+            - name: PORT
+              value: "3002"
+            - name: DB_HOST
+              value: "postgres-user"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "user_db"
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: cab-booking-secrets
+                  key: DB_PASS
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: cab-booking
+spec:
+  selector:
+    app: user-service
+  ports:
+    - port: 3002
+      targetPort: 3002
+---
+# ─────────────────────────────────────────────────────────────────
+# review-service  (port 3009)
+# ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: review-service
+  namespace: cab-booking
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: review-service
+  template:
+    metadata:
+      labels:
+        app: review-service
+    spec:
+      containers:
+        - name: review-service
+          image: cab-booking/review-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3009
+          env:
+            - name: PORT
+              value: "3009"
+            - name: MONGO_URI
+              value: "mongodb://mongo-review:27017/review_db"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3009
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3009
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: review-service
+  namespace: cab-booking
+spec:
+  selector:
+    app: review-service
+  ports:
+    - port: 3009
+      targetPort: 3009
